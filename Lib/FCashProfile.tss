@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<root>
+  <ExportDBInfo>
+    <DBRemoteHost>181.114.240.39</DBRemoteHost>
+    <DBName>ppt</DBName>
+    <DBUser>user1</DBUser>
+    <DBPassword>zaraza</DBPassword>
+  </ExportDBInfo>
+
+  <ExportFtpInfo>
+    <Host>181.114.240.39</Host>
+    <UserName>zaraza</UserName>
+    <UserPassword>zaraza</UserPassword>
+    <ImagesDir>/www/test2</ImagesDir>
+  </ExportFtpInfo>
+</root>

@@ -1,0 +1,66 @@
+﻿<Controls:MetroWindow x:Class="PowerPointPresentation.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:Controls="clr-namespace:MahApps.Metro.Controls;assembly=MahApps.Metro"
+        Title="Парсинг презентации" 
+        Width="920" 
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        Icon="/Resource/PowerPoint.ico"
+        Name="AppWindow" Style="{StaticResource ResourceKey=FlatWindow}"
+        BorderBrush="#BDBCB6">
+
+  <Controls:MetroWindow.Resources>
+    <Storyboard x:Key="StoryboardMessagePopUp">
+      <DoubleAnimation Storyboard.TargetName="MessagePopUp" Storyboard.TargetProperty="Opacity" From="0.0" To="1.0" Duration="0:0:0:1" BeginTime="0:0:0" />
+      <DoubleAnimation Storyboard.TargetName="MessagePopUp" Storyboard.TargetProperty="Opacity" From="1.0" To="0.0" Duration="0:0:1" BeginTime="0:0:4" />
+    </Storyboard>
+  </Controls:MetroWindow.Resources>
+
+  <Grid Name="GridWrapper">
+    <TextBlock Name="MessagePopUp" Text="" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="10" Padding="5" FontSize="16" LineHeight="30"
+               Background="Green" Panel.ZIndex="100" Height="30" Foreground="White" Opacity="0"/>    
+
+    <Grid Margin="3" Name="MainGrid">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="500"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+
+      <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Visible">
+        <StackPanel Name="PresentationPanel" Orientation="Vertical">
+        </StackPanel>
+      </ScrollViewer>
+
+      <GroupBox Grid.Row="1" Background="#BDBCB6" Name="LoginGroupBox" GotFocus="LoginGroupBox_OnGotFocus">
+        <GroupBox.Header>
+          <Label>Login</Label>
+        </GroupBox.Header>
+
+        <TextBox Name="Login" Height="50" AcceptsReturn="True" TextWrapping="Wrap" Margin="5 0 5 0" />
+      </GroupBox>
+
+      <!---Можно выпилить. Из старой версии-->
+      <GroupBox Grid.Row="3" Visibility="Collapsed">
+        <GroupBox.Header>
+          <Label>Url news (Необязательное)</Label>
+        </GroupBox.Header>
+
+        <TextBox Name="UrlNews" Height="50" AcceptsReturn="True" TextWrapping="Wrap" Margin="5 0 5 0" />
+      </GroupBox>
+
+      <DockPanel Grid.Row="2" Margin="5" LastChildFill="True">
+
+        <!---Можно выпилить. Из старой версии-->
+        <Button Height="30" Margin="10 0 0 0" Width="30" DockPanel.Dock="Right" Click="Button_Click" Visibility="Collapsed">
+          <Image Source="/Resource/settings.png" />
+        </Button>
+
+        <Button Content="Добавить" Click="ButtonAdd_OnClick" Height="30" HorizontalAlignment="Stretch" DockPanel.Dock="Right" Margin="5 0 0 0" />
+        <Button Name="ParsePresentationButton" Content="Распарсить презентации" Click="Button_Click_2" Height="30" HorizontalAlignment="Stretch" />
+      </DockPanel>
+    </Grid>
+
+  </Grid>
+</Controls:MetroWindow>
