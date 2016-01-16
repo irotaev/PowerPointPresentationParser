@@ -50,6 +50,7 @@ namespace PowerPointPresentation
 
       for (int index = 0; index < presInfo.SlidersInfo.Count; index++)
       {
+        // 1 вариант content
         //result += String.Format("<div class='slide-block'>" +
         //                           "<h3>Слайд {0}</h3><!-- slide-title -->" +
 
@@ -61,6 +62,7 @@ namespace PowerPointPresentation
         //                         "</div><!-- slide-block -->",
         //                         (index + 1), presInfo.DbId, presInfo.SlidersInfo[index].ImageNameClientAverage, presInfo.SlidersInfo[index].Text);
 
+        // 2 вариант content
         result += String.Format("<div class='trans'>" +
                                    "<p>Слайд {0}</p><!-- trans -->" +
                                       "<img src='/files/{1}/268/{2}' />" +
