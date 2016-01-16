@@ -15,6 +15,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Markup.Localizer;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
@@ -23,6 +24,7 @@ using System.Windows.Shapes;
 using System.Xml.Linq;
 using PowerPointPresentation.Command;
 using PowerPointPresentation.Control;
+using PowerPointPresentation.Exceptions;
 using PowerPointPresentation.PresentationControl;
 using PowerPointPresentation.Transport;
 
@@ -35,6 +37,7 @@ namespace PowerPointPresentation
     private Dictionary<string, string> _Categories = new Dictionary<string, string>();
 
     private string _PresentationFullPath;
+    private readonly ExceptionLoger _exceptionLoger = new ExceptionLoger();
 
     protected override void OnInitialized(EventArgs e)
     {
@@ -61,7 +64,7 @@ namespace PowerPointPresentation
     {
       #region Лицензия
 
-      if (DateTime.UtcNow > new DateTime(2016, 01, 15, 23, 59, 59))
+      if (DateTime.UtcNow > new DateTime(2016, 01, 28, 23, 59, 59))
       {
         MessageBox.Show("Ваша лицензия истекла");
         Application.Current.Shutdown();
@@ -167,6 +170,12 @@ namespace PowerPointPresentation
 
     private void worker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
     {
+      if (e.Error != null)
+      {
+        MessageBox.Show(String.Format("Во время обработки презентации произошла фатальная ошибка \n\n Постарайтесь запомнить условия возникновения ошибки, и обратитесь к программистам, чтобы они устранили неисправность. \n\n Ошибка:\n {0}.", e.Error.Message));
+        Application.Current.Shutdown();
+      }
+
       ParseProgressStatus status = (ParseProgressStatus)e.Result;
 
       status.PresentationControl.ProgressInfo.Visibility = System.Windows.Visibility.Collapsed;
@@ -174,18 +183,12 @@ namespace PowerPointPresentation
       status.PresentationControl.PresentationGrid.Opacity = 1;
       status.PresentationControl.PresentationGrid.IsEnabled = true;
 
-      if (e.Error != null)
-      {
-        MessageBox.Show(String.Format("Во время обработки презентации {0} произошла ошибка \n\n Ошибка:\n {1}", status.PresentationControl.PresentationFileName.Text, e.Error.Message));
-      }
-      else
-      {
-        // Всплывающее собщение, что парсинг прошел успешно
-        MessagePopUp.Text = "Парсинг прошел успешно";
-        //MessagePopUp.Visibility = System.Windows.Visibility.Visible;
-        Storyboard messagePopUp = (Storyboard)TryFindResource("StoryboardMessagePopUp");
-        messagePopUp.Begin();
-      }
+      // Всплывающее собщение, что парсинг прошел успешно
+      MessagePopUp.Text = !status.IsError ? "Парсинг прошел успешно" : "Ошибка парсинга презентации";
+      MessagePopUp.Background = !status.IsError ? Brushes.Green : Brushes.IndianRed;
+      //MessagePopUp.Visibility = System.Windows.Visibility.Visible;
+      Storyboard messagePopUp = (Storyboard)TryFindResource("StoryboardMessagePopUp");
+      messagePopUp.Begin();
 
       RemoveControl(status.PresentationControl);
     }
@@ -194,126 +197,181 @@ namespace PowerPointPresentation
     {
       WorkerArgument argument = (WorkerArgument)e.Argument;
 
-      #region Парсинг презентации
+      var progressStatus = new ParseProgressStatus { PresentationControl = argument.PresentationControl };
 
-      ((BackgroundWorker)sender).ReportProgress(0, new ParseProgressStatus { PresentationControl = argument.PresentationControl, Message = "Начало парсинга презентации", IsOnlyMessage = true });
-
-      PresentationInfo presInfo = null;
-      MySQLPresentationTable abstractpresTable = null;
-      using (PPTFiles pptFiles = new PPTFiles())
+      try
       {
-        #region Получаюданные настройки соединения с БД
-        string dbRemoteHost = null,
-               dbName = null,
-               dbUser = null,
-               dbPassword = null;
+        #region Парсинг презентации
+
+        ((BackgroundWorker)sender).ReportProgress(0,
+          new ParseProgressStatus
+          {
+            PresentationControl = argument.PresentationControl,
+            Message = "Начало парсинга презентации",
+            IsOnlyMessage = true
+          });
+
+        PresentationInfo presInfo = null;
+        MySQLPresentationTable abstractpresTable = null;
+        using (PPTFiles pptFiles = new PPTFiles())
+        {
+          #region Получаюданные настройки соединения с БД
+
+          string dbRemoteHost = null,
+            dbName = null,
+            dbUser = null,
+            dbPassword = null;
+
+          try
+          {
+            XDocument xmlDBDoc = XDocument.Load("Lib\\FCashProfile.tss");
+
+            var XdbRemoteHost = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBRemoteHost"));
+            dbRemoteHost = XdbRemoteHost.Value;
+
+            var XdbName = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBName"));
+            dbName = XdbName.Value;
+
+            var XdbUser = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBUser"));
+            dbUser = XdbUser.Value;
+
+            var XdbPassword = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBPassword"));
+            dbPassword = XdbPassword.Value;
+          }
+          catch (Exception ex)
+          {
+            throw new Exception(
+              String.Format("Не получилось получить конфигурационные данные из файла конфигурации: {0}", ex.Message));
+          }
+
+          if (!String.IsNullOrEmpty(argument.UrlNews))
+            presInfo.UrlNews = argument.UrlNews;
+
+
+          if (String.IsNullOrEmpty(dbRemoteHost) || String.IsNullOrEmpty(dbName) || String.IsNullOrEmpty(dbUser))
+            throw new Exception(
+              "У вас не заполнена конфигурация соединения с базой данных для экспорта\nПожалуйста заполните ее через настройки");
+
+          MySQLPresentationTable presTable = new MySQLPresentationTable(dbRemoteHost, dbName, dbUser, dbPassword);
+          abstractpresTable = presTable;
+
+          #endregion
+
+          pptFiles.ParseSlideCompleteCallback += (object pptFile, SlideCompleteParsingInfo slideParsingInfo) =>
+          {
+            ((BackgroundWorker)sender).ReportProgress(
+              (int)((decimal)slideParsingInfo.SlideCurrentNumber / (decimal)slideParsingInfo.SlideTotalNumber * 100),
+              new ParseProgressStatus
+              {
+                PresentationControl = argument.PresentationControl,
+                Message = "Обработка слайдов"
+              });
+          };
+
+          presTable.CreateTable();
+
+          presInfo = pptFiles.ExtractInfo(argument.PresentationFullPath, presTable);
+          presInfo.Name = argument.PresentationName;
+          presInfo.Title = argument.PresentationTitle;
+          presInfo.Login = argument.Login;
+          presInfo.Categorie = ((KeyValuePair<string, string>)argument.SelectedItem);
+        }
+
+        #endregion
+
+        #region Заливка информации по презентации в БД
+
+        {
+          ((BackgroundWorker)sender).ReportProgress(0,
+            new ParseProgressStatus
+            {
+              PresentationControl = argument.PresentationControl,
+              Message = "Обновление данных на сервере",
+              IsOnlyMessage = true
+            });
+
+          abstractpresTable.PutDataOnServer(presInfo);
+        }
+
+        #endregion
+
+        #region Отправка на FTP
 
         try
         {
-          XDocument xmlDBDoc = XDocument.Load("Lib\\FCashProfile.tss");
+          ((BackgroundWorker)sender).ReportProgress(0,
+            new ParseProgressStatus
+            {
+              PresentationControl = argument.PresentationControl,
+              Message = "Подготовка к отправке файлов на FTP",
+              IsOnlyMessage = true
+            });
 
-          var XdbRemoteHost = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBRemoteHost"));
-          dbRemoteHost = XdbRemoteHost.Value;
+          XDocument xmlFtpDoc = XDocument.Load("Lib\\FCashProfile.tss");
 
-          var XdbName = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBName"));
-          dbName = XdbName.Value;
+          var ftpHost = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("Host"));
+          var ftpUserName = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("UserName"));
+          var ftpUserPassword = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("UserPassword"));
+          var ftpImagesDir = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("ImagesDir"));
 
-          var XdbUser = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBUser"));
-          dbUser = XdbUser.Value;
+          FTP ftp = new FTP(ftpHost.Value, ftpUserName.Value, ftpUserPassword.Value, ftpImagesDir.Value);
+          ftp.UploadImageCompleteCallback += (object ftpSender, UploadImageCompliteInfo completeInfo) =>
+          {
+            ((BackgroundWorker)sender).ReportProgress(
+              (int)((decimal)completeInfo.CurrentImageNumber / (decimal)completeInfo.TotalImagesCount * 100),
+              new ParseProgressStatus
+              {
+                PresentationControl = argument.PresentationControl,
+                Message = "Загрузка изображений на FTP"
+              });
+          };
 
-          var XdbPassword = xmlDBDoc.Root.Element(XName.Get("ExportDBInfo")).Element(XName.Get("DBPassword"));
-          dbPassword = XdbPassword.Value;
+          ftp.OnUploadPresentationBlockCallbak += (object ftpSender, UploadPresentationBlockInfo blockInfo) =>
+          {
+            ((BackgroundWorker)sender).ReportProgress(blockInfo.PercentProgress,
+              new ParseProgressStatus
+              {
+                PresentationControl = argument.PresentationControl,
+                Message = "Загрузка презентации"
+              });
+          };
+
+          List<string> imageNames = new List<string>();
+
+          foreach (var slideInfo in presInfo.SlidersInfo)
+          {
+            if (!String.IsNullOrEmpty(slideInfo.ImageNameClientSmall))
+              imageNames.Add(slideInfo.ImageNameClientSmall);
+
+            if (!String.IsNullOrEmpty(slideInfo.ImageNameClientAverage))
+              imageNames.Add(slideInfo.ImageNameClientAverage);
+
+            if (!String.IsNullOrEmpty(slideInfo.ImageNameClientBig))
+              imageNames.Add(slideInfo.ImageNameClientBig);
+          }
+
+          ftp.UploadImages(presInfo);
         }
         catch (Exception ex)
         {
-          throw new Exception(String.Format("Не получилось получить конфигурационные данные из файла конфигурации: {0}", ex.Message));
+          throw new Exception(String.Format("Во время отправки изображений на FTP возникла ошибка: {0}", ex.Message));
         }
 
-        if (!String.IsNullOrEmpty(argument.UrlNews))
-          presInfo.UrlNews = argument.UrlNews;
-
-
-        if (String.IsNullOrEmpty(dbRemoteHost) || String.IsNullOrEmpty(dbName) || String.IsNullOrEmpty(dbUser))
-          throw new Exception("У вас не заполнена конфигурация соединения с базой данных для экспорта\nПожалуйста заполните ее через настройки");
-
-        MySQLPresentationTable presTable = new MySQLPresentationTable(dbRemoteHost, dbName, dbUser, dbPassword);
-        abstractpresTable = presTable;
         #endregion
-
-        pptFiles.ParseSlideCompleteCallback += (object pptFile, SlideCompleteParsingInfo slideParsingInfo) =>
-        {
-          ((BackgroundWorker)sender).ReportProgress((int)((decimal)slideParsingInfo.SlideCurrentNumber / (decimal)slideParsingInfo.SlideTotalNumber * 100),
-            new ParseProgressStatus { PresentationControl = argument.PresentationControl, Message = "Обработка слайдов" });
-        };
-
-        presTable.CreateTable();
-
-        presInfo = pptFiles.ExtractInfo(argument.PresentationFullPath, presTable);
-        presInfo.Name = argument.PresentationName;
-        presInfo.Title = argument.PresentationTitle;
-        presInfo.Login = argument.Login;
-        presInfo.Categorie = ((KeyValuePair<string, string>)argument.SelectedItem);
-      }
-      #endregion
-
-      #region Заливка информации по презентации в БД
-
-      {
-        ((BackgroundWorker)sender).ReportProgress(0, new ParseProgressStatus { PresentationControl = argument.PresentationControl, Message = "Обновление данных на сервере", IsOnlyMessage = true });
-
-        abstractpresTable.PutDataOnServer(presInfo);
-      }
-      #endregion
-
-      #region Отправка на FTP
-      try
-      {
-        ((BackgroundWorker)sender).ReportProgress(0, new ParseProgressStatus { PresentationControl = argument.PresentationControl, Message = "Подготовка к отправке файлов на FTP", IsOnlyMessage = true });
-
-        XDocument xmlFtpDoc = XDocument.Load("Lib\\FCashProfile.tss");
-
-        var ftpHost = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("Host"));
-        var ftpUserName = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("UserName"));
-        var ftpUserPassword = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("UserPassword"));
-        var ftpImagesDir = xmlFtpDoc.Root.Element(XName.Get("ExportFtpInfo")).Element(XName.Get("ImagesDir"));
-
-        FTP ftp = new FTP(ftpHost.Value, ftpUserName.Value, ftpUserPassword.Value, ftpImagesDir.Value);
-        ftp.UploadImageCompleteCallback += (object ftpSender, UploadImageCompliteInfo completeInfo) =>
-          {
-            ((BackgroundWorker)sender).ReportProgress((int)((decimal)completeInfo.CurrentImageNumber / (decimal)completeInfo.TotalImagesCount * 100),
-              new ParseProgressStatus { PresentationControl = argument.PresentationControl, Message = "Загрузка изображений на FTP" });
-          };
-
-        ftp.OnUploadPresentationBlockCallbak += (object ftpSender, UploadPresentationBlockInfo blockInfo) =>
-          {
-            ((BackgroundWorker)sender).ReportProgress(blockInfo.PercentProgress,
-              new ParseProgressStatus { PresentationControl = argument.PresentationControl, Message = "Загрузка презентации" });
-          };
-
-        List<string> imageNames = new List<string>();
-
-        foreach (var slideInfo in presInfo.SlidersInfo)
-        {
-          if (!String.IsNullOrEmpty(slideInfo.ImageNameClientSmall))
-            imageNames.Add(slideInfo.ImageNameClientSmall);
-
-          if (!String.IsNullOrEmpty(slideInfo.ImageNameClientAverage))
-            imageNames.Add(slideInfo.ImageNameClientAverage);
-
-          if (!String.IsNullOrEmpty(slideInfo.ImageNameClientBig))
-            imageNames.Add(slideInfo.ImageNameClientBig);
-        }
-
-        ftp.UploadImages(presInfo);
       }
       catch (Exception ex)
       {
-        throw new Exception(String.Format("Во время отправки изображений на FTP возникла ошибка: {0}", ex.Message));
+        lock (_exceptionLoger)
+        {
+          _exceptionLoger.WriteLog(string.Format(Environment.NewLine + Environment.NewLine + "[{0}] Во время обработки презентации [{1}] произошла ошибка.\r\n Ошибка: {2} \r\nСтек вызова: {3}", DateTime.Now, argument.PresentationName, ex.Message, ex.StackTrace));
+        }
+
+        progressStatus.IsError = true;
       }
-
-      #endregion
-
-      e.Result = new ParseProgressStatus { PresentationControl = argument.PresentationControl };
+      finally
+      {
+        e.Result = progressStatus;
+      }
     }
 
     private class WorkerArgument

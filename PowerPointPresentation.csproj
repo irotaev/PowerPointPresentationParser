@@ -103,6 +103,7 @@
     <Compile Include="BaseTable.cs" />
     <Compile Include="Command\AddPresentationCommand.cs" />
     <Compile Include="Command\ParsePresentationCommand.cs" />
+    <Compile Include="Exceptions\ExceptionLoger.cs" />
     <Compile Include="PresentationControl\PresenationData.cs" />
     <Compile Include="Ftp.cs" />
     <Compile Include="InternetTime.cs" />
