@@ -64,7 +64,7 @@ namespace PowerPointPresentation
     {
       #region Лицензия
 
-      if (DateTime.UtcNow > new DateTime(2016, 01, 28, 23, 59, 59))
+      if (DateTime.UtcNow > new DateTime(2016, 02, 07, 23, 59, 59))
       {
         MessageBox.Show("Ваша лицензия истекла");
         Application.Current.Shutdown();
