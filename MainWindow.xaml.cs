@@ -199,6 +199,9 @@ namespace PowerPointPresentation
 
       var progressStatus = new ParseProgressStatus { PresentationControl = argument.PresentationControl };
 
+      MySQLPresentationTable abstractpresTable = null;
+      PresentationInfo presInfo = null;
+
       try
       {
         #region Парсинг презентации
@@ -211,8 +214,7 @@ namespace PowerPointPresentation
             IsOnlyMessage = true
           });
 
-        PresentationInfo presInfo = null;
-        MySQLPresentationTable abstractpresTable = null;
+
         using (PPTFiles pptFiles = new PPTFiles())
         {
           #region Получаюданные настройки соединения с БД
@@ -244,8 +246,8 @@ namespace PowerPointPresentation
               String.Format("Не получилось получить конфигурационные данные из файла конфигурации: {0}", ex.Message));
           }
 
-          if (!String.IsNullOrEmpty(argument.UrlNews))
-            presInfo.UrlNews = argument.UrlNews;
+          //if (!String.IsNullOrEmpty(argument.UrlNews))
+          //    presInfo.UrlNews = argument.UrlNews;
 
 
           if (String.IsNullOrEmpty(dbRemoteHost) || String.IsNullOrEmpty(dbName) || String.IsNullOrEmpty(dbUser))
@@ -364,6 +366,23 @@ namespace PowerPointPresentation
         lock (_exceptionLoger)
         {
           _exceptionLoger.WriteLog(string.Format(Environment.NewLine + Environment.NewLine + "[{0}] Во время обработки презентации [{1}] произошла ошибка.\r\n Ошибка: {2} \r\nСтек вызова: {3}", DateTime.Now, argument.PresentationName, ex.Message, ex.StackTrace));
+        }
+
+        // Удаляю пустую подготовленную строчку для презентации из таблицы
+        if (presInfo != null)
+        {
+          try
+          {
+            abstractpresTable.DeleteFromMainTable((ulong)presInfo.DbId);
+          }
+          catch (Exception ex2)
+          {
+            lock (_exceptionLoger)
+            {
+              _exceptionLoger.WriteLog(string.Format(Environment.NewLine + Environment.NewLine + "[{0}] Во время обработки презентации [{1}] произошла ошибка.\r\n Ошибка: {2} \r\nСтек вызова: {3}", DateTime.Now, argument.PresentationName, ex2.Message, ex2.StackTrace));
+            }
+          }
+
         }
 
         progressStatus.IsError = true;

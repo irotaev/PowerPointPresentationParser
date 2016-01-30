@@ -44,6 +44,22 @@ namespace PowerPointPresentation
       }
     }
 
+    public void DeleteFromMainTable(ulong presId)
+    {
+      try
+      {
+        var command = _MySqlConnection.CreateCommand();
+
+        command.CommandText = $"delete from `{_MainTableName}` where id = '{presId}' limit 1";
+
+        command.ExecuteNonQuery();
+      }
+      catch (Exception ex)
+      {
+        throw new Exception($"Во удаления записи с Id [{presId}] из таблицы 'main' произошла непредвиденная ошибка: {ex.Message}");
+      }
+    }
+
     private string FormContentDbColumn(PresentationInfo presInfo)
     {
       string result = null;
@@ -155,7 +171,7 @@ namespace PowerPointPresentation
     {
       #region Заполнение основной таблицы
       try
-      {
+      { throw new ApplicationException();
         MySqlCommand command = _MySqlConnection.CreateCommand();
         command.CommandText = String.Format(new System.Globalization.CultureInfo("en-GB"), @"
           UPDATE `{6}` SET `naz`='{0}', `title`='{1}', `size`='{2:0.00}', `slides`='{3}', `content`='{4}', `login`='{5}', `url`='{8}', `cat`='{9}', `like`='0', `count`='1'
