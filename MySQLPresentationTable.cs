@@ -171,7 +171,7 @@ namespace PowerPointPresentation
     {
       #region Заполнение основной таблицы
       try
-      { throw new ApplicationException();
+      { 
         MySqlCommand command = _MySqlConnection.CreateCommand();
         command.CommandText = String.Format(new System.Globalization.CultureInfo("en-GB"), @"
           UPDATE `{6}` SET `naz`='{0}', `title`='{1}', `size`='{2:0.00}', `slides`='{3}', `content`='{4}', `login`='{5}', `url`='{8}', `cat`='{9}', `like`='0', `count`='1'
